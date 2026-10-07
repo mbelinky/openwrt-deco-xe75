@@ -1,0 +1,48 @@
+From: Mariano Belinky <mbelinky@gmail.com>
+Subject: [PATCH] squashfs: read legacy OpenWrt XZ compressor options
+
+Older OpenWrt tools stored a twelve-byte XZ options structure with the
+dictionary size after flags, bit options and fast bytes. OEM firmware
+still uses this layout. Reading its first word as the dictionary size
+causes otherwise valid filesystems to fail the mount sanity check.
+
+Recognize the legacy structure by its length and read its dictionary
+field. Keep the standard structure and existing dictionary validation.
+
+Signed-off-by: Mariano Belinky <mbelinky@gmail.com>
+---
+ fs/squashfs/xz_wrapper.c | 16 +++++++++++++++-
+ 1 file changed, 15 insertions(+), 1 deletion(-)
+
+--- a/fs/squashfs/xz_wrapper.c
++++ b/fs/squashfs/xz_wrapper.c
+@@ -31,6 +31,14 @@ struct disk_comp_opts {
+ 	__le32 flags;
+ };
+ 
++/* The historical OpenWrt extended options format. */
++struct legacy_disk_comp_opts {
++	__le32 flags;
++	__le16 bit_opts;
++	__le16 fb;
++	__le32 dictionary_size;
++};
++
+ struct comp_opts {
+ 	int dict_size;
+ };
+@@ -55,7 +63,13 @@ static void *squashfs_xz_comp_opts(struct
+ 			goto out;
+ 		}
+ 
+-		opts->dict_size = le32_to_cpu(comp_opts->dictionary_size);
++		if (len == sizeof(struct legacy_disk_comp_opts)) {
++			struct legacy_disk_comp_opts *legacy = buff;
++
++			opts->dict_size = le32_to_cpu(legacy->dictionary_size);
++		} else {
++			opts->dict_size = le32_to_cpu(comp_opts->dictionary_size);
++		}
+ 
+ 		/* the dictionary size should be positive and 2^n or 2^n+2^(n+1) */
+ 		n = ffs(opts->dict_size) - 1;
