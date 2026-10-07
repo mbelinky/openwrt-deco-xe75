@@ -2,6 +2,16 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 # Only the four explicitly read-only partitions are exposed by this profile.
 
+# preinit runs before the normal hotplug device manager.
+xe75_device_node() {
+	local sys="$1" type="$2" major minor node="/dev/${1##*/}"
+	IFS=: read -r major minor < "$sys/dev" || return 1
+	[ -e "$node" ] || {
+		mknod "$node" "$type" "$major" "$minor" || return 1
+		owned_nodes="$owned_nodes $node"
+	}
+}
+
 xe75_attach_ro() {
 	local label="$1" mtd num
 	mtd=$(find_mtd_index "$label")
@@ -16,7 +26,7 @@ xe75_attach_ro() {
 preinit_xe75_factory_data() {
 	[ "$(board_name)" = tplink,deco-xe75-v3 ] || return
 	local PATH="/usr/sbin:/usr/bin:$PATH"
-	local art factory stock vol label
+	local art factory stock vol label owned_nodes=
 	local base=/tmp/xe75-factory-mounts
 	[ ! -e "$base" ] && [ ! -e /tmp/xe75-factory-data ] || return
 	. /lib/functions.sh
@@ -35,7 +45,10 @@ preinit_xe75_factory_data() {
 		for entry in /sys/class/ubi/ubi${stock}_*; do
 			[ "$(cat "$entry/name" 2>/dev/null)" = ubi_rootfs ] && vol=${entry##*_}
 		done
-		if [ -n "$vol" ] && ubiblock -c "/dev/ubi${stock}_${vol}" &&
+		if [ -n "$vol" ] &&
+		   xe75_device_node "/sys/class/ubi/ubi${stock}_${vol}" c &&
+		   ubiblock -c "/dev/ubi${stock}_${vol}" &&
+		   xe75_device_node "/sys/class/block/ubiblock${stock}_${vol}" b &&
 		   mount -t squashfs -o ro "/dev/ubiblock${stock}_${vol}" "$base/stock"; then
 			if xe75-factory-data "$art" "$base/factory" "$base/stock/lib/firmware" /tmp/xe75-factory-data; then
 				mkdir -p /lib/firmware/ath11k/IPQ5018/hw1.0 /lib/firmware/ath11k/QCN6122/hw1.0
@@ -46,6 +59,8 @@ preinit_xe75_factory_data() {
 		fi
 		[ -z "$vol" ] || ubiblock -r "/dev/ubi${stock}_${vol}"
 		ubidetach -d "$stock"
+		[ -z "$owned_nodes" ] || rm -f $owned_nodes
+		owned_nodes=
 		[ ! -f /tmp/xe75-factory-data/default-mac ] || break
 	done
 	umount "$base/factory"
