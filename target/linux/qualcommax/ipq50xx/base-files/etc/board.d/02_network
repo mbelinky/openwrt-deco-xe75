@@ -57,6 +57,13 @@ ipq50xx_setup_macs()
 	local label_mac=""
 
 	case $board in
+	tplink,deco-xe75-v3)
+		label_mac=$(get_mac_binary /tmp/xe75-factory-data/default-mac 0)
+		[ -n "$label_mac" ] || return
+		ucidef_set_interface_macaddr "lan" "$label_mac"
+		ucidef_set_label_macaddr "$label_mac"
+		ucidef_set_network_device_mac "lan" "$label_mac"
+		;;
 	mercusys,mr80x-v2|\
 	tplink,archer-ax55-v1)
 		# factory MAC is 6 raw bytes in tp_data/default-mac, mounted

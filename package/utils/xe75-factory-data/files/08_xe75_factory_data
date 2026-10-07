@@ -1,0 +1,55 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-or-later
+# Only the four explicitly read-only partitions are exposed by this profile.
+
+xe75_attach_ro() {
+	local label="$1" mtd num
+	mtd=$(find_mtd_index "$label")
+	[ -n "$mtd" ] || return 1
+	[ "$(( $(cat /sys/class/mtd/mtd${mtd}/flags) & 0x400 ))" -eq 0 ] || return 1
+	# The writeable MTD flag must be clear before UBI attaches.
+	num=$(ubiattach -m "$mtd" 2>/dev/null | sed -n 's/.*device number \([0-9]*\).*/\1/p')
+	[ -n "$num" ] || return 1
+	printf '%s\n' "$num"
+}
+
+preinit_xe75_factory_data() {
+	[ "$(board_name)" = tplink,deco-xe75-v3 ] || return
+	local PATH="/usr/sbin:/usr/bin:$PATH"
+	local art factory stock vol label
+	local base=/tmp/xe75-factory-mounts
+	[ ! -e "$base" ] && [ ! -e /tmp/xe75-factory-data ] || return
+	. /lib/functions.sh
+	art=$(find_mtd_chardev "0:ART")
+	[ -n "$art" ] || return
+	mkdir -p "$base/factory" "$base/stock"
+	factory=$(xe75_attach_ro factory_data) || return
+	if ! mount -t ubifs -o ro,noatime "ubi${factory}:ubi_factory_data" "$base/factory"; then
+		ubidetach -d "$factory"
+		return
+	fi
+	# One slot can contain OpenWrt. Read only a slot with the OEM rootfs volume.
+	for label in stock-rootfs stock-rootfs_1; do
+		stock=$(xe75_attach_ro "$label") || continue
+		vol=
+		for entry in /sys/class/ubi/ubi${stock}_*; do
+			[ "$(cat "$entry/name" 2>/dev/null)" = ubi_rootfs ] && vol=${entry##*_}
+		done
+		if [ -n "$vol" ] && ubiblock -c "/dev/ubi${stock}_${vol}" &&
+		   mount -t squashfs -o ro "/dev/ubiblock${stock}_${vol}" "$base/stock"; then
+			if xe75-factory-data "$art" "$base/factory" "$base/stock/lib/firmware" /tmp/xe75-factory-data; then
+				mkdir -p /lib/firmware/ath11k/IPQ5018/hw1.0 /lib/firmware/ath11k/QCN6122/hw1.0
+				cp /tmp/xe75-factory-data/IPQ5018/hw1.0/* /lib/firmware/ath11k/IPQ5018/hw1.0/
+				cp /tmp/xe75-factory-data/QCN6122/hw1.0/* /lib/firmware/ath11k/QCN6122/hw1.0/
+			fi
+			umount "$base/stock"
+		fi
+		[ -z "$vol" ] || ubiblock -r "/dev/ubi${stock}_${vol}"
+		ubidetach -d "$stock"
+		[ ! -f /tmp/xe75-factory-data/default-mac ] || break
+	done
+	umount "$base/factory"
+	ubidetach -d "$factory"
+}
+
+boot_hook_add preinit_main preinit_xe75_factory_data

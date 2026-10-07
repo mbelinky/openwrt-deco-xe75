@@ -126,13 +126,52 @@
 	qcom,m3-dump-addr = <0x4f200000>;
 };
 
-/* No flash access until an installation and recovery method is supported. */
+/* Factory provisioning only. No environment or writeable flash is exposed. */
 &qpic_bam {
-	status = "disabled";
+	status = "okay";
 };
 
 &qpic_nand {
-	status = "disabled";
+	status = "okay";
+
+	nand@0 {
+		compatible = "spi-nand";
+		reg = <0>;
+		nand-ecc-engine = <&qpic_nand>;
+		nand-ecc-strength = <4>;
+		nand-ecc-step-size = <512>;
+		nand-bus-width = <8>;
+
+		partitions {
+			compatible = "fixed-partitions";
+			#address-cells = <1>;
+			#size-cells = <1>;
+
+			partition@4c0000 {
+				label = "0:ART";
+				reg = <0x4c0000 0x100000>;
+				read-only;
+			};
+
+			partition@640000 {
+				label = "stock-rootfs";
+				reg = <0x640000 0x2a00000>;
+				read-only;
+			};
+
+			partition@3040000 {
+				label = "stock-rootfs_1";
+				reg = <0x3040000 0x2a00000>;
+				read-only;
+			};
+
+			partition@5ac0000 {
+				label = "factory_data";
+				reg = <0x5ac0000 0x900000>;
+				read-only;
+			};
+		};
+	};
 };
 
 /*

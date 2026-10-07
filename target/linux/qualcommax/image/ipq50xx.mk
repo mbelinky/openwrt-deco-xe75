@@ -314,7 +314,7 @@ define Device/tplink_deco-xe75-v3
 	DEVICE_DTS_CONFIG := config@mp03.5-c1
 	SOC := ipq5018
 	IMAGES :=
-	DEVICE_PACKAGES := ath11k-firmware-ipq5018-qcn6122 kmod-ath11k-ahb iw
+	DEVICE_PACKAGES := ath11k-firmware-ipq5018-qcn6122 kmod-ath11k-ahb iw xe75-factory-data
 endef
 TARGET_DEVICES += tplink_deco-xe75-v3
 
