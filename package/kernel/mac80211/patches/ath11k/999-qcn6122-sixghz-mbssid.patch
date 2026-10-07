@@ -1,0 +1,21 @@
+Subject: ath11k: discover QCN6122 HE nontransmitted BSS profiles
+
+Enable host-side discovery on the QCN6122 six GHz radio. Association and
+firmware capability remain subject to hardware validation.
+
+--- a/drivers/net/wireless/ath/ath11k/mac.c
++++ b/drivers/net/wireless/ath/ath11k/mac.c
+@@ -10487,7 +10487,12 @@
+ 	if (ab->hw_params.single_pdev_only && ar->supports_6ghz)
+ 		ieee80211_hw_set(ar->hw, SINGLE_SCAN_ON_ALL_BANDS);
+ 
+-	if (ab->hw_params.supports_multi_bssid) {
++	/* RAM lab experiment: allow the 6 GHz QCN6122 to discover HE
++	 * nontransmitted BSS profiles. Firmware association support still
++	 * requires validation before this can become a supported capability.
++	 */
++	if (ab->hw_params.supports_multi_bssid ||
++	    (ab->hw_rev == ATH11K_HW_QCN6122_HW10 && ar->supports_6ghz)) {
+ 		ieee80211_hw_set(ar->hw, SUPPORTS_MULTI_BSSID);
+ 		ieee80211_hw_set(ar->hw, SUPPORTS_ONLY_HE_MULTI_BSSID);
+ 	}
