@@ -1,0 +1,24 @@
+From: Mariano Belinky <mbelinky@gmail.com>
+Subject: [PATCH] ubiblock: open volumes read only
+
+Creating or removing a read-only block mapping does not write to the UBI
+volume. The UBI block ioctls accept a read-only volume descriptor. Opening
+the volume with O_RDWR unnecessarily prevents mappings on read-only MTD
+devices, including original firmware mounted during early boot.
+
+Signed-off-by: Mariano Belinky <mbelinky@gmail.com>
+---
+ ubi-utils/ubiblock.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+--- a/ubi-utils/ubiblock.c
++++ b/ubi-utils/ubiblock.c
+@@ -135,7 +135,7 @@ int main(int argc, char * const argv[])
+ 		goto out_libubi;
+ 	}
+ 
+-	fd = open(args.node, O_RDWR);
++	fd = open(args.node, O_RDONLY);
+ 	if (fd == -1) {
+ 		sys_errmsg("cannot open UBI volume \"%s\"", args.node);
+ 		goto out_libubi;
